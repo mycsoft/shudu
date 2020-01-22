@@ -29,8 +29,8 @@ public class SudoMain {
                 9, 0, 0, 5, 4, 1, 0, 0, 6,
                 0, 6, 0, 3, 0, 8, 0, 9, 0
         ));
-        System.out.println(String.format("加载成功,需要计算%d个数字.", t.unkonwn));
         t.printAll();
+        System.out.println(String.format("加载成功,需要计算%d个数字.", t.unkonwn));
         //计算
         t.compute();
         System.out.println(String.format("计算结束,还有%d个数字没有计算出来.", t.unkonwn));
@@ -60,7 +60,10 @@ public class SudoMain {
         int row;
         int column;
         int value;
-        List<Integer> p;
+        /**
+         * 备选值.
+         */
+        List<Integer> bfts;
         Region pile;
         Region verticalLine;
         Region horizontalLine;
@@ -77,7 +80,7 @@ public class SudoMain {
             this.row = row;
             this.column = column;
             this.value = value;
-            this.p = p;
+            this.bfts = p;
         }
 
         private void putToRow(Region rowReg) {
@@ -108,7 +111,7 @@ public class SudoMain {
                 s = String.valueOf(value);
             } else {
                 StringBuilder sb = new StringBuilder("(");
-                for (Integer n : p) {
+                for (Integer n : bfts) {
                     sb.append(n).append(",");
                 }
                 sb.deleteCharAt(sb.length() - 1).append(")");
@@ -246,12 +249,33 @@ public class SudoMain {
         /**
          * 简单粗暴的算法。
          */
-        private void simpleCompute() {
+        private int simpleCompute() {
             //遍历每个cell,记录可能值。直到只有一个可能性。
-            for (Cell[] cell : cells) {
+            boolean changed = false;
+            int roll = 0;
+            SimpleScaner scaner = new SimpleScaner();
+            scaner.scan(this);
+//            
+//            do {
+//                changed = false;
+//                for (Cell[] row : cells) {
+//                    for (Cell cell : row) {
+//                        boolean changedNow = scaner.scanBft(cell);
+//                        if (changedNow) {
+//                            changed = true;
+//                        }
+//                        boolean needSaveValue = scaner.onlyOne && cell.value <= 0;
+//                        if (needSaveValue) {
+//                            cell.value = cell.bfts.get(0);
+//                            cell.bfts.clear();
+//                            unkonwn --;
+//                        }
+//                    }
+//                }
+//                roll++;
+//            } while (changed);
 
-            }
-            throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+            return roll;
         }
 
         /**
@@ -339,5 +363,89 @@ public class SudoMain {
             }
             return piles.get(index);
         }
+
+//        private boolean scanBft(Cell cell) {
+//            SimpleScaner scaner = new SimpleScaner();
+//            scaner.scanBft(cell);
+//            return scaner.onlyOne;
+//        }
+    }
+
+    static class SimpleScaner {
+
+        boolean onlyOne = false;
+        boolean changed = false;
+
+        /**
+         * 扫描备选值.
+         *
+         * @param cell
+         * @return 是否有变化.
+         */
+        private boolean scanBft(Cell cell) {
+            List<Integer> bfts = cell.bfts;
+            //是否是唯一值.
+            onlyOne = bfts.size() < 2;
+            if (onlyOne) {
+                //已经是唯一值,不需要检查了.
+                return false;
+            }
+            changed = false;
+
+            //遍历行
+            scanBft(bfts, cell.horizontalLine.cells);
+            //遍历列
+            scanBft(bfts, cell.verticalLine.cells);
+            //遍历堆
+            scanBft(bfts, cell.pile.cells);
+            return changed;
+        }
+
+        private void scanBft(List<Integer> bfts, List<Cell> cells) {
+            if (!onlyOne) {
+                for (Cell rc : cells) {
+                    if (bfts.contains(rc.value)) {
+                        changed = true;
+                        bfts.remove(Integer.valueOf(rc.value));
+                        if (bfts.size() < 2) {
+                            onlyOne = true;
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+
+        private boolean scan(Table t) {
+            //本次是否有变化.
+            boolean thisChanged = false;
+            //上次检查是否有变化?
+            boolean lastChanged = false;
+            int roll = 0;
+            do {
+                //单次是否有变化.
+                lastChanged = false;
+                for (Cell[] row : t.cells) {
+                    for (Cell cell : row) {
+//                        onlyOne = false;
+                        boolean changedNow = scanBft(cell);
+                        if (changedNow) {
+                            lastChanged = true;
+                            thisChanged = true;
+                        }
+                        boolean needSaveValue = onlyOne && cell.value <= 0;
+                        if (needSaveValue) {
+                            cell.value = cell.bfts.get(0);
+                            cell.bfts.clear();
+                            t.unkonwn--;
+                        }
+                    }
+                }
+                roll++;
+            } while (lastChanged);
+
+            return thisChanged;
+        }
+
     }
 }
