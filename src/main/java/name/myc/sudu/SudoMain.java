@@ -8,7 +8,9 @@ package name.myc.sudu;
 import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  *
@@ -35,8 +37,9 @@ public class SudoMain {
         t.compute();
         System.out.println(String.format("计算结束,还有%d个数字没有计算出来.", t.unkonwn));
         //显示计算结果。
-        System.out.println("===============================================");
         t.printAll();
+        System.out.println("===============================================");
+        System.out.println(String.format("计算结束,还有%d个数字没有计算出来.", t.unkonwn));
     }
 
     /**
@@ -253,27 +256,24 @@ public class SudoMain {
             //遍历每个cell,记录可能值。直到只有一个可能性。
             boolean changed = false;
             int roll = 0;
-            SimpleScaner scaner = new SimpleScaner();
-            scaner.scan(this);
-//            
-//            do {
-//                changed = false;
-//                for (Cell[] row : cells) {
-//                    for (Cell cell : row) {
-//                        boolean changedNow = scaner.scanBft(cell);
-//                        if (changedNow) {
-//                            changed = true;
-//                        }
-//                        boolean needSaveValue = scaner.onlyOne && cell.value <= 0;
-//                        if (needSaveValue) {
-//                            cell.value = cell.bfts.get(0);
-//                            cell.bfts.clear();
-//                            unkonwn --;
-//                        }
-//                    }
-//                }
-//                roll++;
-//            } while (changed);
+            SimpleScaner simpleScaner = new SimpleScaner();
+            OnlyOneScaner onlyOneScaner = new OnlyOneScaner();
+            do {
+                int c = 0;
+                //线性排除法检查
+                if (simpleScaner.scan(this)) {
+                    c++;
+                }
+                printAll();
+                //唯一法检查;
+                if (onlyOneScaner.scan(this)) {
+                    c++;
+                }
+                printAll();
+
+                changed = c > 0;
+
+            } while (unkonwn > 0 && changed);
 
             return roll;
         }
@@ -371,52 +371,41 @@ public class SudoMain {
 //        }
     }
 
-    static class SimpleScaner {
+    static interface Scaner {
 
-        boolean onlyOne = false;
-        boolean changed = false;
+        boolean scan(Table t);
+
+//        /**
+//         * @return the onlyOne
+//         */
+//        boolean isOnlyOne();
+    }
+
+    static abstract class AbstractScaner implements Scaner {
+
+        protected boolean changed = false;
 
         /**
-         * 扫描备选值.
-         *
-         * @param cell
-         * @return 是否有变化.
+         * @return the onlyOne
          */
-        private boolean scanBft(Cell cell) {
-            List<Integer> bfts = cell.bfts;
-            //是否是唯一值.
-            onlyOne = bfts.size() < 2;
-            if (onlyOne) {
-                //已经是唯一值,不需要检查了.
-                return false;
-            }
-            changed = false;
+//        @Override
+    }
 
-            //遍历行
-            scanBft(bfts, cell.horizontalLine.cells);
-            //遍历列
-            scanBft(bfts, cell.verticalLine.cells);
-            //遍历堆
-            scanBft(bfts, cell.pile.cells);
-            return changed;
+    /**
+     * 简单检查器.
+     *
+     * 只进行简单的排除法.
+     */
+    static class SimpleScaner extends AbstractScaner {
+
+        protected boolean onlyOne = false;
+
+        public boolean isOnlyOne() {
+            return onlyOne;
         }
 
-        private void scanBft(List<Integer> bfts, List<Cell> cells) {
-            if (!onlyOne) {
-                for (Cell rc : cells) {
-                    if (bfts.contains(rc.value)) {
-                        changed = true;
-                        bfts.remove(Integer.valueOf(rc.value));
-                        if (bfts.size() < 2) {
-                            onlyOne = true;
-                            return;
-                        }
-                    }
-                }
-            }
-        }
-
-        private boolean scan(Table t) {
+        @Override
+        public boolean scan(Table t) {
             //本次是否有变化.
             boolean thisChanged = false;
             //上次检查是否有变化?
@@ -433,7 +422,7 @@ public class SudoMain {
                             lastChanged = true;
                             thisChanged = true;
                         }
-                        boolean needSaveValue = onlyOne && cell.value <= 0;
+                        boolean needSaveValue = isOnlyOne() && cell.value <= 0;
                         if (needSaveValue) {
                             cell.value = cell.bfts.get(0);
                             cell.bfts.clear();
@@ -447,5 +436,134 @@ public class SudoMain {
             return thisChanged;
         }
 
+        /**
+         * 扫描备选值.
+         *
+         * @param cell
+         * @return 是否有变化.
+         */
+        protected boolean scanBft(Cell cell) {
+            List<Integer> bfts = cell.bfts;
+            //是否是唯一值.
+            onlyOne = bfts.size() < 2;
+            if (isOnlyOne()) {
+                //已经是唯一值,不需要检查了.
+                return false;
+            }
+            changed = false;
+            //遍历行
+            scanBft(bfts, cell.horizontalLine.cells);
+            //遍历列
+            scanBft(bfts, cell.verticalLine.cells);
+            //遍历堆
+            scanBft(bfts, cell.pile.cells);
+            return changed;
+        }
+
+        protected void scanBft(List<Integer> bfts, List<Cell> cells) {
+            if (!isOnlyOne()) {
+                for (Cell rc : cells) {
+                    if (bfts.contains(rc.value)) {
+                        changed = true;
+                        bfts.remove(Integer.valueOf(rc.value));
+                        if (bfts.size() < 2) {
+                            onlyOne = true;
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+
+    }
+
+    /**
+     * 唯一值检查器.
+     *
+     * 只进行唯一的值计算.
+     */
+    static class OnlyOneScaner extends AbstractScaner {
+
+        @Override
+        public boolean scan(Table t) {
+            //本次是否有变化.
+            boolean thisChanged = false;
+            //上次检查是否有变化?
+//            boolean lastChanged = false;
+//            int roll = 0;
+//            do {
+                //单次是否有变化.
+//                lastChanged = false;
+                int c = 0;
+                //按行
+                c += scanRegions(t.rows);
+                if (c > 0) {
+                    //如果有变化,那么需要再进行次全面扫描.
+                    t.unkonwn -= c;
+                    return true;
+                }
+                //按列
+                c += scanRegions(t.columns);
+                if (c > 0) {
+                    //如果有变化,那么需要再进行次全面扫描.
+                    t.unkonwn -= c;
+                    return true;
+                }
+                //按堆
+                c += scanRegions(t.piles);
+                if (c > 0) {
+                    //如果有变化,那么需要再进行次全面扫描.
+                    t.unkonwn -= c;
+                    return true;
+                }
+//                lastChanged = c > 0;
+//                roll++;
+//            } while (lastChanged);
+
+            return thisChanged;
+        }
+
+        private int scanRegions(List<Region> regions) {
+            int c = 0;
+            for (Region r : regions) {
+                c += scanRegion(r.cells);
+                System.out.println("==============================================");
+            }
+            return c;
+        }
+
+        protected int scanRegion(List<Cell> cells) {
+//            boolean findOnlyOne = false;
+            int foundCount = 0;
+            Map<Integer, List<Cell>> bftsMap = new HashMap<>(9);
+            //统计一下所有备选值出现的次数.
+            for (Cell cell : cells) {
+                if (cell.value <= 0) {
+                    for (Integer bft : cell.bfts) {
+                        List<Cell> cs = bftsMap.get(bft);
+                        if (cs == null) {
+                            cs = new ArrayList<>();
+                            bftsMap.put(bft, cs);
+                        }
+                        cs.add(cell);
+                    }
+                }
+            }
+
+            //找出唯一值进行修改.
+            for (Map.Entry<Integer, List<Cell>> entry : bftsMap.entrySet()) {
+                if (entry.getValue().size() == 1) {
+                    foundCount++;
+                    //保存维一值.
+                    Cell c = entry.getValue().get(0);
+                    c.value = entry.getKey();
+                    c.bfts.clear();
+                    System.out.println(String.format("%d | 找到唯一值 %d:[%d:%d:{%s}]", foundCount, c.value, c.row, c.column, c.bfts.toString()));
+//                    findOnlyOne = true;
+//                    onlyOne = true;
+                }
+            }
+            return foundCount;
+        }
     }
 }
