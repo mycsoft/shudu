@@ -21,15 +21,24 @@ public class SudoMain {
     public static void main(String[] args) {
         //加载原始数据
         Table t = Table.createBySingle(Arrays.asList(
-                0, 1, 0, 4, 0, 9, 0, 8, 0,
-                4, 0, 0, 7, 2, 5, 0, 0, 9,
+                //                0, 1, 0, 4, 0, 9, 0, 8, 0,
+                //                4, 0, 0, 7, 2, 5, 0, 0, 9,
+                //                0, 0, 0, 0, 0, 0, 0, 0, 0,
+                //                3, 5, 0, 0, 0, 0, 0, 6, 8,
+                //                0, 9, 0, 0, 0, 0, 0, 1, 0,
+                //                2, 7, 0, 0, 0, 0, 0, 4, 3,
+                //                0, 0, 0, 0, 0, 0, 0, 0, 0,
+                //                9, 0, 0, 5, 4, 1, 0, 0, 6,
+                //                0, 6, 0, 3, 0, 8, 0, 9, 0
                 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                3, 5, 0, 0, 0, 0, 0, 6, 8,
-                0, 9, 0, 0, 0, 0, 0, 1, 0,
-                2, 7, 0, 0, 0, 0, 0, 4, 3,
-                0, 0, 0, 0, 0, 0, 0, 0, 0,
-                9, 0, 0, 5, 4, 1, 0, 0, 6,
-                0, 6, 0, 3, 0, 8, 0, 9, 0
+                1, 0, 0, 0, 4, 0, 2, 8, 3,
+                3, 0, 5, 0, 0, 1, 0, 0, 9,
+                0, 0, 0, 9, 0, 0, 0, 0, 0,
+                2, 6, 0, 0, 0, 0, 0, 1, 8,
+                0, 0, 0, 0, 0, 7, 0, 0, 0,
+                5, 0, 0, 2, 0, 0, 7, 0, 4,
+                7, 4, 6, 0, 8, 0, 0, 0, 5,
+                0, 0, 0, 0, 0, 0, 0, 0, 0
         ));
         t.printAll();
         System.out.println(String.format("加载成功,需要计算%d个数字.", t.unkonwn));
@@ -40,6 +49,31 @@ public class SudoMain {
         t.printAll();
         System.out.println("===============================================");
         System.out.println(String.format("计算结束,还有%d个数字没有计算出来.", t.unkonwn));
+        if (t.unkonwn == 0) {
+            checkResult(t);
+        }
+    }
+
+    private static void checkResult(Table t) {
+        checkResult(t.rows);
+        checkResult(t.columns);
+        checkResult(t.piles);
+        System.out.println("===============================================");
+        System.out.println("检查完成,没有错误.");
+
+    }
+
+    private static void checkResult(List<Region> regions) {
+        for (Region r : regions) {
+            List<Integer> nList = new ArrayList<>(9);
+            for (Cell cell : r.cells) {
+                if (nList.contains(cell.value)) {
+                    throw new RuntimeException(String.format("发现错误,数字%d在[%d,%d]上重复了.", cell.value, cell.row, cell.column));
+                } else {
+                    nList.add(cell.value);
+                }
+            }
+        }
     }
 
     /**
@@ -492,30 +526,30 @@ public class SudoMain {
 //            boolean lastChanged = false;
 //            int roll = 0;
 //            do {
-                //单次是否有变化.
+            //单次是否有变化.
 //                lastChanged = false;
-                int c = 0;
-                //按行
-                c += scanRegions(t.rows);
-                if (c > 0) {
-                    //如果有变化,那么需要再进行次全面扫描.
-                    t.unkonwn -= c;
-                    return true;
-                }
-                //按列
-                c += scanRegions(t.columns);
-                if (c > 0) {
-                    //如果有变化,那么需要再进行次全面扫描.
-                    t.unkonwn -= c;
-                    return true;
-                }
-                //按堆
-                c += scanRegions(t.piles);
-                if (c > 0) {
-                    //如果有变化,那么需要再进行次全面扫描.
-                    t.unkonwn -= c;
-                    return true;
-                }
+            int c = 0;
+            //按行
+            c += scanRegions(t.rows);
+            if (c > 0) {
+                //如果有变化,那么需要再进行次全面扫描.
+                t.unkonwn -= c;
+                return true;
+            }
+            //按列
+            c += scanRegions(t.columns);
+            if (c > 0) {
+                //如果有变化,那么需要再进行次全面扫描.
+                t.unkonwn -= c;
+                return true;
+            }
+            //按堆
+            c += scanRegions(t.piles);
+            if (c > 0) {
+                //如果有变化,那么需要再进行次全面扫描.
+                t.unkonwn -= c;
+                return true;
+            }
 //                lastChanged = c > 0;
 //                roll++;
 //            } while (lastChanged);
