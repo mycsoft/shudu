@@ -30,6 +30,7 @@ public class SudoMain {
                 0, 6, 0, 3, 0, 8, 0, 9, 0
         ));
         System.out.println(String.format("加载成功,需要计算%d个数字.", t.unkonwn));
+        t.printAll();
         //计算
         t.compute();
         System.out.println(String.format("计算结束,还有%d个数字没有计算出来.", t.unkonwn));
@@ -44,6 +45,17 @@ public class SudoMain {
      * 为防止循环调用,所有组装方法,只从下向上组装.
      */
     static class Cell {
+
+        private static Cell create(int row, int column, int v, final int MAX) {
+            List<Integer> p = new ArrayList<>(v == 0 ? 0 : MAX);
+            if (v == 0) {
+                for (int i = 0; i < MAX; i++) {
+                    p.add(i + 1);
+                }
+            }
+            Cell c = new Cell(row, column, v, p);
+            return c;
+        }
 
         int row;
         int column;
@@ -69,11 +81,14 @@ public class SudoMain {
         }
 
         private void putToRow(Region rowReg) {
-            throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+            rowReg.cells.add(this);
+            horizontalLine = rowReg;
         }
 
         private void putToColumn(Region column) {
-            throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+            column.cells.add(this);
+            verticalLine = column;
+
         }
 
         /**
@@ -82,12 +97,24 @@ public class SudoMain {
          * @param pile
          */
         private void putToPile(Region pile) {
-
-            throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+            pile.cells.add(this);
+            this.pile = pile;
+//            throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
         }
 
         private void printResult(PrintStream out) {
-            throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+            String s;
+            if (value > 0) {
+                s = String.valueOf(value);
+            } else {
+                StringBuilder sb = new StringBuilder("(");
+                for (Integer n : p) {
+                    sb.append(n).append(",");
+                }
+                sb.deleteCharAt(sb.length() - 1).append(")");
+                s = sb.toString();
+            }
+            out.print(s);
         }
 
     };
@@ -97,13 +124,25 @@ public class SudoMain {
      */
     static class Region {
 
-        private static Region create(int MAX_COLUMN) {
-            throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        private static Region create(int count) {
+            Region r = new Region();
+            r.cells = new ArrayList<>(count);
+            return r;
         }
 
         List<Cell> cells;
         PileLine verticalLine;
         PileLine horizontalLine;
+
+        private void putToRow(PileLine pl) {
+            horizontalLine = pl;
+            pl.piles.add(this);
+        }
+
+        private void putToColumn(PileLine pl) {
+            verticalLine = pl;
+            pl.piles.add(this);
+        }
     }
 
     /**
@@ -112,6 +151,13 @@ public class SudoMain {
      * 用于计算三个同行(或同列)方阵之间的数字排除关系. 一般一个堆线为3*1; 用
      */
     static class PileLine {
+
+        private static PileLine create(Table t, int length) {
+            PileLine pl = new PileLine();
+            pl.parent = t;
+            pl.piles = new ArrayList<>(length);
+            return pl;
+        }
 
         List<Region> piles;
         Table parent;
@@ -122,8 +168,9 @@ public class SudoMain {
      */
     static class Table {
 
-        static final int MAX_ROW = 9;
-        static final int MAX_COLUMN = 9;
+        static final int MAX = 9;
+        static final int MAX_ROW = MAX;
+        static final int MAX_COLUMN = MAX;
         static final int PILE_ROW_COUNT = 3;
         static final int PILE_COLUMN_COUNT = 3;
         static final int PILE_LINE_ROW_COUNT = 3;
@@ -155,10 +202,11 @@ public class SudoMain {
             for (int i = 0; i < number.size(); i++) {
                 int v = number.get(i);
                 //一行9个，逐行进行加载
-                int row = i % MAX_ROW;
+                int row = i / MAX_ROW;
                 int column = i % MAX_COLUMN;
                 //加载时记录行列号.
-                Cell cell = new Cell(row, column, v);
+//                Cell cell = new Cell(row, column, v);
+                Cell cell = Cell.create(row, column, v, MAX);
                 t.cells[row][column] = cell;
                 if (v == 0) {
                     t.unkonwn++;
@@ -179,8 +227,11 @@ public class SudoMain {
         }
 
         private void printAll() {
+            System.out.println("================================================");
             for (int i = 0; i < cells.length; i++) {
                 Cell[] row = cells[i];
+                System.out.println("------------------------------------------------");
+                System.out.print("[" + i + "]");
                 for (int j = 0; j < row.length; j++) {
                     Cell c = row[j];
                     System.out.print("\t|");
@@ -188,6 +239,8 @@ public class SudoMain {
                 }
                 System.out.println("\t|");
             }
+            System.out.println("------------------------------------------------");
+            System.out.println("================================================");
         }
 
         /**
@@ -207,10 +260,10 @@ public class SudoMain {
         private void initComputeModel() {
             //初始化每一行
 //            rows = new ArrayList<>(MAX_ROW);
-            rows = createRegionList(MAX_ROW);
+            rows = createRegionList(MAX_ROW, MAX_COLUMN);
             //初始化每一列
 //            columns = new ArrayList<>(MAX_COLUMN);
-            columns = createRegionList(MAX_COLUMN);
+            columns = createRegionList(MAX_COLUMN, MAX_ROW);
 
             //初始化每一个子区域
             initPiles();
@@ -228,38 +281,63 @@ public class SudoMain {
                     Region column = columns.get(j);
                     cell.putToColumn(column);
                     //初始化每一个子区域
-                    Region pile = findPile(i, j);
+                    Region pile = findPileByCell(i, j);
                     cell.putToPile(pile);
                 }
             }
 
         }
 
-        private List<Region> createRegionList(final int count) {
+        private List<Region> createRegionList(final int count, final int subCount) {
             List<Region> list = new ArrayList<>(count);
             for (int i = 0; i < count; i++) {
-                list.add(new Region());
+                list.add(Region.create(subCount));
             }
             return list;
         }
 
-//        private List<PileLine> createPileList(int PILE_LINE_ROW_COUNT) {
-//            throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
-//        }
+        private List<PileLine> createPileList(int count, int subCount) {
+            List<PileLine> list = new ArrayList<>(count);
+            for (int i = 0; i < count; i++) {
+                PileLine pl = PileLine.create(this, subCount);
+                list.add(pl);
+            }
+            return list;
+        }
 
         private void initPiles() {
             //            piles = new ArrayList<>(PILE_LINE_ROW_COUNT * PILE_LINE_COLUMN_COUNT);
-            piles = createRegionList(PILE_LINE_ROW_COUNT * PILE_LINE_COLUMN_COUNT);
+            piles = createRegionList(PILE_LINE_ROW_COUNT * PILE_LINE_COLUMN_COUNT,
+                    PILE_ROW_COUNT * PILE_COLUMN_COUNT);
             //初始化区域横
-            horizontalPiles = new ArrayList<>(PILE_LINE_ROW_COUNT);
+            horizontalPiles = createPileList(PILE_LINE_ROW_COUNT, PILE_COLUMN_COUNT);
             //初始化区域纵
-            verticalPiles = new ArrayList<>(PILE_LINE_COLUMN_COUNT);
+            verticalPiles = createPileList(PILE_LINE_COLUMN_COUNT, PILE_ROW_COUNT);
             //将所有pile加载到纵横矩阵中.
-            throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+            for (int i = 0; i < piles.size(); i++) {
+                Region pile = piles.get(i);
+                int row = i / PILE_COLUMN_COUNT;
+                int column = i % PILE_COLUMN_COUNT;
+                pile.putToRow(horizontalPiles.get(row));
+                pile.putToColumn(verticalPiles.get(column));
+
+            }
         }
 
-        private Region findPile(int i, int j) {
-            throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        /**
+         * 根据单元格的位置查询对应的Pile.
+         *
+         * @param row
+         * @param column
+         * @return
+         */
+        private Region findPileByCell(int row, int column) {
+            int index = row / PILE_ROW_COUNT * PILE_COLUMN_COUNT + column / PILE_COLUMN_COUNT;
+            if (index >= piles.size()) {
+                throw new IndexOutOfBoundsException(
+                        String.format("数组越界: %d >= %d.(row:%d,column:%d)", index, piles.size(), row, column));
+            }
+            return piles.get(index);
         }
     }
 }
