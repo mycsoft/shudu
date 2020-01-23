@@ -19,8 +19,7 @@ import java.util.Map;
 public class SudoMain {
 
     public static void main(String[] args) {
-        //加载原始数据
-        Table t = Table.createBySingle(Arrays.asList(
+        compute(Arrays.asList(
                 //                0, 1, 0, 4, 0, 9, 0, 8, 0,
                 //                4, 0, 0, 7, 2, 5, 0, 0, 9,
                 //                0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -40,6 +39,11 @@ public class SudoMain {
                 7, 4, 6, 0, 8, 0, 0, 0, 5,
                 0, 0, 0, 0, 0, 0, 0, 0, 0
         ));
+    }
+
+    private static void compute(List<Integer> numbers) {
+        //加载原始数据
+        Table t = Table.createBySingle(numbers);
         t.printAll();
         System.out.println(String.format("加载成功,需要计算%d个数字.", t.unkonwn));
         //计算
@@ -52,6 +56,7 @@ public class SudoMain {
         if (t.unkonwn == 0) {
             checkResult(t);
         }
+
     }
 
     private static void checkResult(Table t) {
