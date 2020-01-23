@@ -8,9 +8,12 @@ package name.myc.sudu;
 import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
 /**
  *
@@ -89,7 +92,7 @@ public class SudoMain {
     static class Cell {
 
         private static Cell create(int row, int column, int v, final int MAX) {
-            List<Integer> p = new ArrayList<>(v == 0 ? 0 : MAX);
+            SortedSet<Integer> p = new TreeSet<>();
             if (v == 0) {
                 for (int i = 0; i < MAX; i++) {
                     p.add(i + 1);
@@ -105,7 +108,7 @@ public class SudoMain {
         /**
          * 备选值.
          */
-        List<Integer> bfts;
+        SortedSet<Integer> bfts;
         Region pile;
         Region verticalLine;
         Region horizontalLine;
@@ -118,7 +121,7 @@ public class SudoMain {
             this(row, column, value, null);
         }
 
-        public Cell(int row, int column, int value, List<Integer> p) {
+        public Cell(int row, int column, int value, SortedSet<Integer> p) {
             this.row = row;
             this.column = column;
             this.value = value;
@@ -172,10 +175,12 @@ public class SudoMain {
         private static Region create(int count) {
             Region r = new Region();
             r.cells = new ArrayList<>(count);
+            r.btfs = new TreeSet<>();
             return r;
         }
 
         List<Cell> cells;
+        SortedSet<Integer> btfs;
         PileLine verticalLine;
         PileLine horizontalLine;
 
@@ -297,6 +302,7 @@ public class SudoMain {
             int roll = 0;
             SimpleScaner simpleScaner = new SimpleScaner();
             OnlyOneScaner onlyOneScaner = new OnlyOneScaner();
+            GroupScaner groupScaner = new GroupScaner();
             do {
                 int c = 0;
                 //线性排除法检查
@@ -308,6 +314,9 @@ public class SudoMain {
                 if (onlyOneScaner.scan(this)) {
                     c++;
                 }
+                printAll();
+                //分组法检查;
+                c += groupScaner.scan(this);
                 printAll();
 
                 changed = c > 0;
@@ -420,6 +429,16 @@ public class SudoMain {
 //        boolean isOnlyOne();
     }
 
+    static interface Scaner2 {
+
+        int scan(Table t);
+
+//        /**
+//         * @return the onlyOne
+//         */
+//        boolean isOnlyOne();
+    }
+
     static abstract class AbstractScaner implements Scaner {
 
         protected boolean changed = false;
@@ -463,7 +482,7 @@ public class SudoMain {
                         }
                         boolean needSaveValue = isOnlyOne() && cell.value <= 0;
                         if (needSaveValue) {
-                            cell.value = cell.bfts.get(0);
+                            cell.value = cell.bfts.first();
                             cell.bfts.clear();
                             t.unkonwn--;
                         }
@@ -482,7 +501,7 @@ public class SudoMain {
          * @return 是否有变化.
          */
         protected boolean scanBft(Cell cell) {
-            List<Integer> bfts = cell.bfts;
+            SortedSet<Integer> bfts = cell.bfts;
             //是否是唯一值.
             onlyOne = bfts.size() < 2;
             if (isOnlyOne()) {
@@ -499,7 +518,7 @@ public class SudoMain {
             return changed;
         }
 
-        protected void scanBft(List<Integer> bfts, List<Cell> cells) {
+        protected void scanBft(SortedSet<Integer> bfts, List<Cell> cells) {
             if (!isOnlyOne()) {
                 for (Cell rc : cells) {
                     if (bfts.contains(rc.value)) {
@@ -604,5 +623,133 @@ public class SudoMain {
             }
             return foundCount;
         }
+    }
+
+    /**
+     * 分组扫描器。
+     *
+     * 通过取同类项分组的方式，缩小备选值范围。
+     *
+     * 算法思路：
+     *
+     * 1. 针对一个堆中的所有未填入值进行分析，
+     *
+     * 2. 依次排除其中每个值（n）存在的单元格集合（listCn），等到余下的单元格集合(listUCn)。
+     *
+     * 3. 如果listUCn的备选值数量与单元格数相等(listUCn.bfts.size =
+     * listUCn.cells.size),那么就可以确认listUCn中的备选值，不会出现在listCn中。
+     *
+     * 4. 则从listCn中删除listUCn.bfts.
+     *
+     * 5. 以listUCn为总集合，再进行一次遍历。直到bfts或cells为空。
+     *
+     */
+    static class GroupScaner implements Scaner2 {
+
+        @Override
+        public int scan(Table t) {
+            int c = 0;
+            //遍历所有的堆。
+            c += scan(t.rows);
+            c += scan(t.columns);
+            c += scan(t.piles);
+            return c;
+        }
+
+        private int scan(List<Region> regions) {
+            int c = 0;
+            for (Region r : regions) {
+                c += scan(r);
+            }
+            return c;
+        }
+
+        private int scan(Region region) {
+            return scanCells(region.cells);
+        }
+
+        private SortedSet<Integer> findAllBtfs(Collection<Cell> cells) {
+            SortedSet<Integer> allBtfs = new TreeSet<>();
+            cells.forEach((cell) -> {
+                cell.bfts.forEach((bft) -> {
+                    allBtfs.add(bft);
+                });
+            });
+            return allBtfs;
+        }
+
+        private int scanCells(List<Cell> cells) {
+            //找出所有的备选值。
+            SortedSet<Integer> allBtfs = findAllBtfs(cells);
+            //依次排除其中每个值（n）存在的单元格集合（listCn），等到余下的单元格集合(listUCn)。
+            return groupByNumber(allBtfs, cells, cells, cells);
+            //如果listUCn的备选值数量与单元格数相等(listUCn.bfts.size = listUCn.cells.size),那么就可以确认listUCn中的备选值，不会出现在listCn中。
+            //则从listCn中删除listUCn.bfts.
+            //以listUCn为总集合，再进行一次遍历。直到bfts或cells为空。
+        }
+
+        private int groupByNumber(Collection<Integer> numbers, List<Cell> all, List<Cell> has, List<Cell> notHas) {
+            int changed = 0;
+            //依次排除其中每个值（n）存在的单元格集合（listCn），等到余下的单元格集合(listUCn)。
+            for (Integer n : numbers) {
+
+                Region listCn = Region.create(all.size());
+                Region listUCn = Region.create(all.size());
+                int allCount = 0;
+                for (Cell cell : all) {
+                    if (cell.value > 0) {
+                        continue;
+                    }
+                    allCount++;
+                    if (cell.bfts.contains(n)) {
+                        listCn.cells.add(cell);
+                        listCn.btfs.addAll(cell.bfts);
+                    } else {
+                        listUCn.cells.add(cell);
+                        listUCn.btfs.addAll(cell.bfts);
+                    }
+                }
+
+                /* 如果listUCn的备选值数量与单元格数相等(listUCn.bfts.size = 
+                listUCn.cells.size),那么就可以确认listUCn中的备选值，不会出现在listCn中。
+                 */
+                boolean ucnIsGroup = listUCn.cells.size() == listUCn.btfs.size()
+                        && listUCn.cells.size() < allCount;
+                if (ucnIsGroup) {
+                    //则从listCn中删除listUCn.bfts.
+                    listCn.btfs.removeAll(listUCn.btfs);
+                    changed = listCn.cells.stream().map((c) -> {
+                        //从每个单元格中删除。
+                        int before = c.bfts.size();
+                        c.bfts.removeAll(listUCn.btfs);
+                        int bftsCount = c.bfts.size();
+                        boolean changeCell = before - bftsCount > 0;
+                        if (changeCell) {
+                            if (bftsCount == 1) {
+                                c.value = c.bfts.first();
+                                c.bfts.clear();
+                                c.horizontalLine.horizontalLine.parent.unkonwn --;
+                            }
+                            return 1;
+                        }
+                        return 0;
+                    }).reduce(changed, Integer::sum);
+
+//                    changed = listCn.cells.stream().map((c) -> {
+//                        int before = c.bfts.size();
+//                        c.bfts.removeAll(listUCn.btfs);
+//                        return before - c.bfts.size() > 0 ? 1 : 0;
+//                    }).reduce(changed, Integer::sum);
+                }
+                //以listUCn为总集合，再进行一次遍历。直到bfts或cells为空。
+                if (numbers.size() > 1) {
+                    Collection<Integer> subNumbers = new ArrayList<>(numbers);
+                    subNumbers.remove(n);
+                    changed += groupByNumber(subNumbers, listUCn.cells, has, notHas);
+                }
+            }
+            return changed;
+        }
+
     }
 }
